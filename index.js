@@ -6,10 +6,10 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST);
 
 const app = express();
 
-// ✅ Body parser больше не нужен — Express умеет сам
+
 app.use(express.json());
 
-// ✅ Хорошая практика — ограничить CORS, например:
+
 app.use(cors({
   origin: ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
 
@@ -20,7 +20,7 @@ app.post("/stripe/create-payment-intent", async (req, res) => {
   console.log("Получен запрос /stripe/create-payment-intent", req.body);
   const { amount } = req.body;
 
-  // ✅ Проверим, чтобы amount был числом > 0
+ 
   if (!amount || typeof amount !== "number" || amount <= 0) {
     return res.status(400).json({
       error: "Invalid or missing amount",
