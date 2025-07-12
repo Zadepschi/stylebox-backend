@@ -11,10 +11,15 @@ app.use(express.json());
 
 
 app.use(cors({
-  origin: ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
-
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://stylebox-shop.vercel.app"
+  ],
   credentials: true,
 }));
+
 
 app.post("/stripe/create-payment-intent", async (req, res) => {
   console.log("Получен запрос /stripe/create-payment-intent", req.body);
