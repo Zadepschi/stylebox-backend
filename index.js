@@ -15,11 +15,11 @@ app.use(cors({
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
-    "https://stylebox-shop.vercel.app"
+    "https://stylebox-shop.vercel.app",
+    "https://style-box-new.vercel.app"
   ],
   credentials: true,
 }));
-
 
 app.post("/stripe/create-payment-intent", async (req, res) => {
   console.log("Получен запрос /stripe/create-payment-intent", req.body);
