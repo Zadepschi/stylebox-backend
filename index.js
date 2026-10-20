@@ -39,6 +39,8 @@ app.get("/api/private", checkJwt, (req, res) => {
   });
 });
 
+
+console.log("CHECK 2 — POST /api/orders received");
 // Create Stripe PaymentIntent
 app.post("/stripe/create-payment-intent", async (req, res) => {
   const { amount } = req.body;
