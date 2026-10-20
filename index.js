@@ -217,6 +217,22 @@ app.get("/api/orders", checkJwt, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    console.log(
+      "CHECK 6 — Images from MongoDB:",
+      JSON.stringify(
+        orders.map((order) => ({
+          id: order._id,
+          items: order.items.map((item) => ({
+            name: item.name,
+            image: item.image,
+            hasImage: Boolean(item.image),
+          })),
+        })),
+        null,
+        2
+      )
+    );
+
     return res.status(200).json({ orders });
   } catch (error) {
     console.error("Fetch orders error:", error.message);
@@ -226,7 +242,6 @@ app.get("/api/orders", checkJwt, async (req, res) => {
     });
   }
 });
-
 
 
 // Start server
