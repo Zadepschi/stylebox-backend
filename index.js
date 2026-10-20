@@ -79,6 +79,10 @@ app.post("/api/orders", checkJwt, async (req, res) => {
 
     const { paymentIntentId, items } = req.body;
 
+console.log("CHECK 2 — POST /api/orders received");
+console.log("CHECK 2 — Items:", JSON.stringify(items, null, 2));
+
+
     if (
       typeof paymentIntentId !== "string" ||
       !Array.isArray(items) ||
@@ -118,12 +122,20 @@ app.post("/api/orders", checkJwt, async (req, res) => {
     }
 
     // Normalize incoming cart items
+   
+    // Normalize incoming cart items
     const cleanItems = items.map((item) => ({
       productId: String(item.id ?? item.productId ?? ""),
       name: String(item.name ?? item.title ?? ""),
+      image: String(item.image ?? ""),
       price: Number(item.price),
       quantity: Number(item.quantity),
     }));
+
+console.log(
+  "CHECK 3 — Clean items:",
+  JSON.stringify(cleanItems, null, 2)
+);
 
     const validItems = cleanItems.every(
       (item) =>
@@ -168,6 +180,11 @@ app.post("/api/orders", checkJwt, async (req, res) => {
       paymentStatus: "paid",
       orderStatus: "new",
     });
+
+    console.log(
+  "5. Saved order items:",
+  JSON.stringify(order.items, null, 2)
+);
 
     return res.status(201).json({
       message: "Order saved successfully.",
