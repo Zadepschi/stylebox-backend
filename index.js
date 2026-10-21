@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST);
 
 const Order = require("./models/Order");
+const CustomerAddress = require("./models/CustomerAddress");
 const checkJwt = require("./middleware/checkJwt");
 
 const app = express();
@@ -40,7 +41,129 @@ app.get("/api/private", checkJwt, (req, res) => {
 });
 
 
-console.log("CHECK 2 — POST /api/orders received");
+function normalizeShippingAddress(input) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const address = {
+    address: String(input.address ?? "").trim(),
+    city: String(input.city ?? "").trim(),
+    state: String(input.state ?? "").trim(),
+    postalCode: String(input.postalCode ?? "").trim(),
+    country: String(input.country ?? "").trim(),
+    latitude: input.latitude,
+    longitude: input.longitude,
+  };
+
+  if (
+    !address.address ||
+    !address.city ||
+    !address.state ||
+    !address.postalCode ||
+    address.country !== "United States" ||
+    typeof address.latitude !== "number" ||
+    !Number.isFinite(address.latitude) ||
+    address.latitude < -90 ||
+    address.latitude > 90 ||
+    typeof address.longitude !== "number" ||
+    !Number.isFinite(address.longitude) ||
+    address.longitude < -180 ||
+    address.longitude > 180
+  ) {
+    return null;
+  }
+
+  return address;
+}
+
+// Get the current user's saved address.
+app.get("/api/me/shipping-address", checkJwt, async (req, res) => {
+  try {
+    const userId = req.auth.payload.sub;
+
+    const saved = await CustomerAddress.findOne({ userId }).lean();
+
+    if (!saved) {
+      return res.status(200).json({ address: null });
+    }
+
+    const { address, city, state, postalCode, country, latitude, longitude } =
+      saved;
+
+    return res.status(200).json({
+      address: {
+        address,
+        city,
+        state,
+        postalCode,
+        country,
+        latitude,
+        longitude,
+      },
+    });
+  } catch (error) {
+    console.error("Load shipping address error:", error.message);
+    return res.status(500).json({
+      error: "Failed to load shipping address.",
+    });
+  }
+});
+
+// Save or update the current user's address.
+app.put("/api/me/shipping-address", checkJwt, async (req, res) => {
+  try {
+    const userId = req.auth.payload.sub;
+    const address = normalizeShippingAddress(req.body);
+
+    if (!address) {
+      return res.status(400).json({
+        error: "Please provide a complete valid US shipping address.",
+      });
+    }
+
+    const saved = await CustomerAddress.findOneAndUpdate(
+      { userId },
+      { $set: address },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      }
+    );
+
+    return res.status(200).json({
+      message: "Shipping address saved.",
+      address: {
+        address: saved.address,
+        city: saved.city,
+        state: saved.state,
+        postalCode: saved.postalCode,
+        country: saved.country,
+        latitude: saved.latitude,
+        longitude: saved.longitude,
+      },
+    });
+  } catch (error) {
+    console.error("Save shipping address error:", error.message);
+    return res.status(500).json({
+      error: "Failed to save shipping address.",
+    });
+  }
+});
+
+app.get("/api/debug/routes", (req, res) => {
+  res.json({
+    service: "StyleBox API",
+    shippingAddressRouteLoaded:
+      app._router.stack.some(
+        (layer) =>
+          layer.route?.path === "/api/me/shipping-address"
+      ),
+  });
+});
+
 // Create Stripe PaymentIntent
 app.post("/stripe/create-payment-intent", async (req, res) => {
   const { amount } = req.body;
@@ -79,10 +202,16 @@ app.post("/api/orders", checkJwt, async (req, res) => {
     // Authenticated Auth0 user
     const userId = req.auth.payload.sub;
 
-    const { paymentIntentId, items } = req.body;
+    const { paymentIntentId, items, shippingAddress: inputAddress } =
+  req.body;
 
-console.log("CHECK 2 — POST /api/orders received");
-console.log("CHECK 2 — Items:", JSON.stringify(items, null, 2));
+const shippingAddress = normalizeShippingAddress(inputAddress);
+
+if (!shippingAddress) {
+  return res.status(400).json({
+    error: "A valid shipping address is required.",
+  });
+}
 
 
     if (
@@ -172,16 +301,19 @@ console.log(
       });
     }
 
+
+
     // Save order in MongoDB
-    const order = await Order.create({
-      userId,
-      items: cleanItems,
-      totalAmount: paymentIntent.amount,
-      currency: paymentIntent.currency,
-      paymentIntentId: paymentIntent.id,
-      paymentStatus: "paid",
-      orderStatus: "new",
-    });
+ const order = await Order.create({
+  userId,
+  shippingAddress,
+  items: cleanItems,
+  totalAmount: paymentIntent.amount,
+  currency: paymentIntent.currency,
+  paymentIntentId: paymentIntent.id,
+  paymentStatus: "paid",
+  orderStatus: "new",
+});
 
     console.log(
   "5. Saved order items:",
