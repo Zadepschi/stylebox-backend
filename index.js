@@ -41,6 +41,7 @@ app.get("/api/private", checkJwt, (req, res) => {
 });
 
 
+
 function normalizeShippingAddress(input) {
   if (!input || typeof input !== "object") {
     return null;
@@ -52,6 +53,7 @@ function normalizeShippingAddress(input) {
     state: String(input.state ?? "").trim(),
     postalCode: String(input.postalCode ?? "").trim(),
     country: String(input.country ?? "").trim(),
+    phone: String(input.phone ?? "").trim(),
     latitude: input.latitude,
     longitude: input.longitude,
   };
@@ -61,6 +63,7 @@ function normalizeShippingAddress(input) {
     !address.city ||
     !address.state ||
     !address.postalCode ||
+    !address.phone ||
     address.country !== "United States" ||
     typeof address.latitude !== "number" ||
     !Number.isFinite(address.latitude) ||
@@ -77,7 +80,9 @@ function normalizeShippingAddress(input) {
   return address;
 }
 
+
 // Get the current user's saved address.
+
 app.get("/api/me/shipping-address", checkJwt, async (req, res) => {
   try {
     const userId = req.auth.payload.sub;
@@ -88,8 +93,16 @@ app.get("/api/me/shipping-address", checkJwt, async (req, res) => {
       return res.status(200).json({ address: null });
     }
 
-    const { address, city, state, postalCode, country, latitude, longitude } =
-      saved;
+    const {
+      address,
+      city,
+      state,
+      postalCode,
+      country,
+      phone,
+      latitude,
+      longitude,
+    } = saved;
 
     return res.status(200).json({
       address: {
@@ -98,6 +111,7 @@ app.get("/api/me/shipping-address", checkJwt, async (req, res) => {
         state,
         postalCode,
         country,
+        phone,
         latitude,
         longitude,
       },
@@ -110,15 +124,22 @@ app.get("/api/me/shipping-address", checkJwt, async (req, res) => {
   }
 });
 
-// Save or update the current user's address.
+
+
+ // Save or update the current user's address.
 app.put("/api/me/shipping-address", checkJwt, async (req, res) => {
   try {
+    console.log("Phone received:", req.body.phone);
+
     const userId = req.auth.payload.sub;
     const address = normalizeShippingAddress(req.body);
 
+    console.log("Phone normalized:", address?.phone);
+
     if (!address) {
       return res.status(400).json({
-        error: "Please provide a complete valid US shipping address.",
+        error:
+          "Please provide a complete valid US shipping address, including phone number.",
       });
     }
 
@@ -132,6 +153,7 @@ app.put("/api/me/shipping-address", checkJwt, async (req, res) => {
         setDefaultsOnInsert: true,
       }
     );
+    console.log("Phone saved in MongoDB:", saved.phone);
 
     return res.status(200).json({
       message: "Shipping address saved.",
@@ -141,6 +163,7 @@ app.put("/api/me/shipping-address", checkJwt, async (req, res) => {
         state: saved.state,
         postalCode: saved.postalCode,
         country: saved.country,
+        phone: saved.phone,
         latitude: saved.latitude,
         longitude: saved.longitude,
       },
@@ -152,6 +175,7 @@ app.put("/api/me/shipping-address", checkJwt, async (req, res) => {
     });
   }
 });
+
 
 app.get("/api/debug/routes", (req, res) => {
   res.json({

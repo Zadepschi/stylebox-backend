@@ -3,6 +3,12 @@ const mongoose = require("mongoose");
 
 const shippingAddressSchema = new mongoose.Schema(
   {
+      phone: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     address: {
       type: String,
       required: true,
@@ -122,6 +128,21 @@ const orderSchema = new mongoose.Schema(
       ],
       default: "new",
     },
+
+  // Номер отправления, присвоенный Geologistics
+    trackingNumber: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    // ID заказа, созданного в Geologistics
+    geologisticsOrderId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
   },
   {
     timestamps: true,
