@@ -220,6 +220,74 @@ app.post("/stripe/create-payment-intent", async (req, res) => {
   }
 });
 
+
+async function syncPaidOrderToGeoLogistics(order) {
+  if (!order || order.paymentStatus !== "paid") return;
+
+  // Don't send an order that is already linked to GeoLogistics.
+  if (order.geologisticsOrderId) return;
+
+  const url = process.env.GEOLOGISTICS_SHIPMENTS_URL;
+  const secret = process.env.STYLEBOX_INTEGRATION_SECRET;
+  const clientId = process.env.GEOLOGISTICS_STYLEBOX_CLIENT_ID;
+
+  if (!url || !secret || !clientId) {
+    console.error("GeoLogistics integration is not configured.");
+    return;
+  }
+
+  const shipping = order.shippingAddress;
+
+  const payload = {
+    externalOrderId: String(order._id),
+    clientId,
+    phone: shipping.phone,
+    address: shipping.address,
+    city: shipping.city,
+    postalCode: shipping.postalCode,
+    latitude: shipping.latitude,
+    longitude: shipping.longitude,
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-stylebox-secret": secret,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(`GeoLogistics HTTP ${response.status}`);
+    }
+
+    const geoOrderId = result.order?.id;
+
+    if (!geoOrderId) {
+      throw new Error("GeoLogistics response has no order ID");
+    }
+
+    await Order.findByIdAndUpdate(order._id, {
+      geologisticsOrderId: String(geoOrderId),
+    });
+
+    console.log(
+      `Order ${order._id} synced with GeoLogistics: ${geoOrderId}`
+    );
+  } catch (error) {
+    console.error(
+      `GeoLogistics sync failed for order ${order._id}:`,
+      error.message
+    );
+  }
+}
+
+
 // Save order after successful Stripe payment
 app.post("/api/orders", checkJwt, async (req, res) => {
   try {
@@ -263,18 +331,21 @@ if (!shippingAddress) {
       paymentIntentId: paymentIntent.id,
     });
 
-    if (existingOrder) {
-      if (existingOrder.userId !== userId) {
-        return res.status(403).json({
-          error: "This payment belongs to another user.",
-        });
-      }
+    
+if (existingOrder) {
+  if (existingOrder.userId !== userId) {
+    return res.status(403).json({
+      error: "This payment belongs to another user.",
+    });
+  }
 
-      return res.status(200).json({
-        message: "Order already saved.",
-        order: existingOrder,
-      });
-    }
+  void syncPaidOrderToGeoLogistics(existingOrder);
+
+  return res.status(200).json({
+    message: "Order already saved.",
+    order: existingOrder,
+  });
+}
 
     // Normalize incoming cart items
    
@@ -338,6 +409,8 @@ console.log(
   paymentStatus: "paid",
   orderStatus: "new",
 });
+
+void syncPaidOrderToGeoLogistics(order);
 
     console.log(
   "5. Saved order items:",
